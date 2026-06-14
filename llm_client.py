@@ -31,6 +31,13 @@ def call_gemini_llm(prompt_text):
                 print(f"LLM response structure unexpected: {result}")
                 return "Could not generate a response from the AI."
         except requests.exceptions.RequestException as e:
+            status = e.response.status_code if hasattr(e, 'response') and e.response is not None else None
+            if status == 429:
+                return "The AI service is currently rate-limited due to too many requests. Please wait a minute and try again."
+            if status == 403:
+                return "The AI service rejected the request. Your API key may be invalid or expired."
+            if status == 400:
+                return "The AI service couldn't process the request. The prompt may be too long."
             retries += 1
             if retries >= max_retries:
                 print(f"LLM API call failed (attempt {retries}/{max_retries}): {e}. No more retries.")
