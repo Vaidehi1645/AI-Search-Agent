@@ -1,0 +1,17 @@
+# Environment
+.env
+
+# Python
+venv/
+__pycache__/
+*.pyc
+.python-version
+
+# Node.js (unused but was committed)
+node_modules/
+package.json
+package-lock.json
+
+# Crawled data (regenerated on demand)
+my_search_data.json
+search_index.pkl
