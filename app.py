@@ -33,7 +33,8 @@ def initialize_search_agent(force_re_crawl=False):
             print("Initial crawl failed. Search agent will be empty.")
             return
 
-    crawled_data_map = {page['url']: page for page in crawled_pages}
+    if crawled_pages:
+        crawled_data_map = {page['url']: page for page in crawled_pages}
 
     inverted_index = load_inverted_index(INDEX_FILE)
     if inverted_index is None:
@@ -45,19 +46,24 @@ def initialize_search_agent(force_re_crawl=False):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     query = request.args.get('query', '')
+    page = request.args.get('page', 1, type=int)
     search_results = []
     ai_response = None
+    total_results = 0
+    total_pages = 0
 
     if query:
-        print(f"User searched for: '{query}'")
-        search_results = search_index(query, inverted_index, crawled_data_map)
+        print(f"User searched for: '{query}' (page {page})")
+        search_results, total_results, total_pages = search_index(
+            query, inverted_index, crawled_data_map, page=page
+        )
 
         if search_results:
             llm_context = ""
             for result in search_results[:3]:
                 llm_context += f"--- Document from {result['url']} ---\n"
-                page = crawled_data_map.get(result['url'], {})
-                llm_context += page.get('text', '')[:2000] + "\n\n"
+                page_data = crawled_data_map.get(result['url'], {})
+                llm_context += page_data.get('text', '')[:2000] + "\n\n"
 
             if llm_context:
                 prompt_for_llm = (
@@ -76,7 +82,15 @@ def index():
         else:
             ai_response = "No results found in the local index for your query. Cannot generate an AI response."
 
-    return render_template('index.html', query=query, results=search_results, ai_response=ai_response)
+    return render_template(
+        'index.html',
+        query=query,
+        results=search_results,
+        ai_response=ai_response,
+        total_results=total_results,
+        total_pages=total_pages,
+        current_page=page
+    )
 
 
 if __name__ == '__main__':

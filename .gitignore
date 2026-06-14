@@ -14,4 +14,7 @@ package-lock.json
 
 # Crawled data (regenerated on demand)
 my_search_data.json
+search_index.json
 search_index.pkl
+search_meta.json
+*.log
