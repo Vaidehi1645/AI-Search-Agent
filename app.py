@@ -20,7 +20,10 @@ inverted_index = {}
 
 # --- Gemini API Configuration ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent"
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+
+if not GEMINI_API_KEY:
+    print("WARNING: GEMINI_API_KEY environment variable not set. AI features will fail.")
 
 # --- Helper functions ---
 
@@ -195,6 +198,9 @@ def call_gemini_llm(prompt_text):
                 return "Could not generate a response from the AI."
         except requests.exceptions.RequestException as e:
             retries += 1
+            if retries >= max_retries:
+                print(f"LLM API call failed (attempt {retries}/{max_retries}): {e}. No more retries.")
+                break
             wait_time = 2 ** retries
             print(f"LLM API call failed (attempt {retries}/{max_retries}): {e}. Retrying in {wait_time} seconds...")
             time.sleep(wait_time)
@@ -244,12 +250,9 @@ def index():
             # Prepare context for the LLM from top search results
             llm_context = ""
             # Limit context to avoid token limits and focus on most relevant
-            for i, result in enumerate(search_results[:3]):
+            for result in search_results[:3]:
                 llm_context += f"--- Document from {result['url']} ---\n"
-                # Limit to first 2000 characters per document
                 llm_context += result['full_text'][:2000] + "\n\n"
-                if i == 2:
-                    break
             
             if llm_context:
                 prompt_for_llm = (
@@ -271,5 +274,7 @@ def index():
     return render_template('index.html', query=query, results=search_results, ai_response=ai_response)
 
 if __name__ == '__main__':
-    initialize_search_agent(force_re_crawl=True)
-    app.run(debug=True)
+    force_re_crawl = os.getenv("FORCE_RE_CRAWL", "false").lower() == "true"
+    debug_mode = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+    initialize_search_agent(force_re_crawl=force_re_crawl)
+    app.run(debug=debug_mode)
