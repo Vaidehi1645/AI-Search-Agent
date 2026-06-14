@@ -2,9 +2,10 @@ import os
 
 from flask import Flask, render_template, request
 
-from config import DATA_FILE, SEED_URLS
+from config import DATA_FILE, INDEX_FILE, SEED_URLS
 from crawler import load_crawled_data, simple_web_crawler_with_storage
-from search_engine import build_inverted_index, search_index
+from search_engine import (build_inverted_index, load_inverted_index,
+                           save_inverted_index, search_index)
 from llm_client import call_gemini_llm
 
 app = Flask(__name__)
@@ -18,22 +19,26 @@ def initialize_search_agent(force_re_crawl=False):
     global crawled_pages, crawled_data_map, inverted_index
 
     if force_re_crawl:
-        import os as _os
-        if _os.path.exists(DATA_FILE):
-            print("Force re-crawl enabled: Deleting existing 'my_search_data.json'...")
-            _os.remove(DATA_FILE)
+        if os.path.exists(DATA_FILE):
+            os.remove(DATA_FILE)
+        if os.path.exists(INDEX_FILE):
+            os.remove(INDEX_FILE)
 
     crawled_pages = load_crawled_data(DATA_FILE)
 
     if not crawled_pages:
-        print("No existing crawled data found or data is empty. Running a small initial crawl...")
+        print("No existing crawled data. Running initial crawl...")
         crawled_pages = simple_web_crawler_with_storage(SEED_URLS, max_pages=10, delay=1, output_file=DATA_FILE)
         if not crawled_pages:
-            print("Initial crawl failed to collect data. Search agent will be empty.")
+            print("Initial crawl failed. Search agent will be empty.")
             return
 
     crawled_data_map = {page['url']: page for page in crawled_pages}
-    inverted_index = build_inverted_index(crawled_pages)
+
+    inverted_index = load_inverted_index(INDEX_FILE)
+    if inverted_index is None:
+        inverted_index = build_inverted_index(crawled_pages)
+        save_inverted_index(inverted_index, INDEX_FILE)
     print("Search agent initialized and ready!")
 
 
@@ -51,7 +56,8 @@ def index():
             llm_context = ""
             for result in search_results[:3]:
                 llm_context += f"--- Document from {result['url']} ---\n"
-                llm_context += result['full_text'][:2000] + "\n\n"
+                page = crawled_data_map.get(result['url'], {})
+                llm_context += page.get('text', '')[:2000] + "\n\n"
 
             if llm_context:
                 prompt_for_llm = (
@@ -76,5 +82,6 @@ def index():
 if __name__ == '__main__':
     force_re_crawl = os.getenv("FORCE_RE_CRAWL", "false").lower() == "true"
     debug_mode = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+    port = int(os.getenv("FLASK_PORT", "5000"))
     initialize_search_agent(force_re_crawl=force_re_crawl)
-    app.run(debug=debug_mode)
+    app.run(debug=debug_mode, port=port)
