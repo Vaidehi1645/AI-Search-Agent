@@ -14,41 +14,86 @@
             word-break: break-all;
             overflow-wrap: break-word;
         }
+        .snippet mark {
+            background-color: #fef08a;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+        #loading-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(255,255,255,0.8);
+            z-index: 50;
+            align-items: center;
+            justify-content: center;
+        }
+        #loading-overlay.active {
+            display: flex;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e5e7eb;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center py-10">
-    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl">
-        <h1 class="text-4xl font-bold text-center text-gray-800 mb-6">AI Search Agent</h1>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center py-4 sm:py-10 px-4">
 
-        <form action="/" method="GET" class="flex flex-col sm:flex-row gap-4 mb-8">
-            <input type="text" name="query" placeholder="Enter your search query..."
+    <div id="loading-overlay">
+        <div class="text-center">
+            <div class="spinner mx-auto mb-4"></div>
+            <p class="text-gray-600 text-lg">Searching...</p>
+        </div>
+    </div>
+
+    <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg w-full max-w-2xl">
+        <h1 class="text-3xl sm:text-4xl font-bold text-center text-gray-800 mb-6">AI Search Agent</h1>
+
+        <form id="search-form" action="/" method="GET" class="flex flex-col sm:flex-row gap-4 mb-8">
+            <input id="search-input" type="text" name="query" placeholder="Enter your search query..."
                    class="flex-grow p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
-                   value="{{ query }}">
-            <button type="submit"
-                    class="bg-blue-600 text-white px-6 py-3 rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-300 ease-in-out text-lg font-semibold">
+                   value="{{ query }}" autofocus>
+            <button id="search-btn" type="submit"
+                    class="bg-blue-600 text-white px-6 py-3 rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-300 ease-in-out text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
                 Search
             </button>
         </form>
 
         {% if ai_response %}
-            <div class="bg-blue-50 p-5 rounded-lg shadow-sm border border-blue-200 mb-8">
-                <h2 class="text-2xl font-semibold text-blue-800 mb-3">AI's Answer:</h2>
+            {% set is_error = ai_response.startswith("Failed") or ai_response.startswith("Could not") or ai_response.startswith("An error") or ai_response.startswith("AI is not") %}
+            <div class="p-5 rounded-lg shadow-sm border mb-8 {{ 'bg-red-50 border-red-200' if is_error else 'bg-blue-50 border-blue-200' }}">
+                <h2 class="text-2xl font-semibold mb-3 {{ 'text-red-800' if is_error else 'text-blue-800' }}">{{ 'Error' if is_error else "AI's Answer" }}:</h2>
                 <p class="text-gray-800 leading-relaxed whitespace-pre-wrap">{{ ai_response }}</p>
+                {% if is_error %}
+                    <p class="text-xs text-gray-500 mt-2">Try again in a few minutes, or check your API key in the <code>.env</code> file.</p>
+                {% endif %}
             </div>
         {% endif %}
 
         <div id="results">
             {% if results %}
-                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Search Results ({{ total_results }} found)</h2>
+                <h2 class="text-xl sm:text-2xl font-semibold text-gray-700 mb-4">Search Results ({{ total_results }} found)</h2>
                 <div class="space-y-6">
                     {% for result in results %}
-                        <div class="bg-gray-50 p-5 rounded-lg shadow-sm border border-gray-200">
-                            <h3 class="text-xl font-medium text-blue-700 hover:underline mb-1">
+                        <div class="bg-gray-50 p-4 sm:p-5 rounded-lg shadow-sm border border-gray-200">
+                            <h3 class="text-lg sm:text-xl font-medium text-blue-700 hover:underline mb-1">
                                 <a href="{{ result.url }}" target="_blank" rel="noopener noreferrer">{{ result.title }}</a>
                             </h3>
-                            <p class="text-sm text-green-700 mb-2 result-url">{{ result.url }}</p>
-                            <p class="text-gray-700 leading-relaxed">{{ result.snippet }}</p>
-                            <p class="text-xs text-gray-500 mt-2">Score: {{ "%.3f"|format(result.score) }}</p>
+                            <p class="text-xs sm:text-sm text-green-700 mb-2 result-url">{{ result.url }}</p>
+                            <p class="snippet text-gray-700 leading-relaxed text-sm sm:text-base">{{ result.snippet }}</p>
+                            <div class="flex items-center gap-3 mt-2">
+                                <div class="flex-1 h-2 bg-gray-200 rounded-full max-w-32">
+                                    <div class="h-2 bg-blue-500 rounded-full" style="width: {{ (result.score * 100)|round(1) }}%"></div>
+                                </div>
+                                <span class="text-xs text-gray-500">{{ (result.score * 100)|round(1) }}% match</span>
+                            </div>
                         </div>
                     {% endfor %}
                 </div>
@@ -57,18 +102,18 @@
                 <div class="flex justify-center items-center gap-4 mt-8">
                     {% if current_page > 1 %}
                         <a href="/?query={{ query }}&page={{ current_page - 1 }}"
-                           class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                           class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm sm:text-base">
                             Previous
                         </a>
                     {% endif %}
 
-                    <span class="text-gray-600">
+                    <span class="text-gray-600 text-sm sm:text-base">
                         Page {{ current_page }} of {{ total_pages }}
                     </span>
 
                     {% if current_page < total_pages %}
                         <a href="/?query={{ query }}&page={{ current_page + 1 }}"
-                           class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                           class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm sm:text-base">
                             Next
                         </a>
                     {% endif %}
@@ -76,11 +121,46 @@
                 {% endif %}
 
             {% elif query %}
-                <p class="text-center text-gray-600 text-lg">No results found for "{{ query }}".</p>
+                <p class="text-center text-gray-600 text-lg">No results found for <strong>{{ query }}</strong>.</p>
             {% else %}
-                <p class="text-center text-gray-600 text-lg">Enter a query to start searching!</p>
+                <p class="text-center text-gray-500 text-lg">Enter a query above to start searching!</p>
             {% endif %}
         </div>
     </div>
+
+    <script>
+        const input = document.getElementById('search-input');
+        const btn = document.getElementById('search-btn');
+        const form = document.getElementById('search-form');
+        const overlay = document.getElementById('loading-overlay');
+
+        function updateBtn() {
+            btn.disabled = !input.value.trim();
+        }
+        input.addEventListener('input', updateBtn);
+        updateBtn();
+
+        form.addEventListener('submit', function() {
+            if (input.value.trim()) {
+                overlay.classList.add('active');
+            }
+        });
+
+        const snippetEls = document.querySelectorAll('.snippet');
+        if (snippetEls.length > 0) {
+            const query = new URLSearchParams(window.location.search).get('query');
+            if (query) {
+                const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 1);
+                snippetEls.forEach(el => {
+                    let html = el.innerHTML;
+                    terms.forEach(term => {
+                        const re = new RegExp('(' + term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+                        html = html.replace(re, '<mark>$1</mark>');
+                    });
+                    el.innerHTML = html;
+                });
+            }
+        }
+    </script>
 </body>
 </html>
