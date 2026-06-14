@@ -2,7 +2,7 @@ import os
 
 from flask import Flask, render_template, request
 
-from config import DATA_FILE, INDEX_FILE, SEED_URLS
+from config import DATA_FILE, INDEX_FILE, MAX_PAGES, SEED_URLS
 from crawler import load_crawled_data, simple_web_crawler_with_storage
 from search_engine import (build_inverted_index, load_inverted_index,
                            save_inverted_index, search_index)
@@ -28,7 +28,7 @@ def initialize_search_agent(force_re_crawl=False):
 
     if not crawled_pages:
         print("No existing crawled data. Running initial crawl...")
-        crawled_pages = simple_web_crawler_with_storage(SEED_URLS, max_pages=10, delay=1, output_file=DATA_FILE)
+        crawled_pages = simple_web_crawler_with_storage(SEED_URLS, max_pages=MAX_PAGES, delay=1, output_file=DATA_FILE)
         if not crawled_pages:
             print("Initial crawl failed. Search agent will be empty.")
             return

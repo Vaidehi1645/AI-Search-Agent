@@ -14,6 +14,7 @@ if not GEMINI_API_KEY:
 USER_AGENT = "AI-Search-Agent/1.0 (Educational)"
 
 RESULTS_PER_PAGE = 10
+MAX_PAGES = 50
 
 SEED_URLS = [
     "https://www.themessycorner.in/",
